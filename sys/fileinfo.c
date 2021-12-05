@@ -64,6 +64,7 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
   PDokanFCB fcb = NULL;
   ULONG eventLength;
   PEVENT_CONTEXT eventContext;
+  BOOLEAN fcbLocked = FALSE;
 
   // PAGED_CODE();
 
@@ -88,7 +89,6 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
     ASSERT(fcb != NULL);
 
     OplockDebugRecordMajorFunction(fcb, IRP_MJ_QUERY_INFORMATION);
-    DokanFCBLockRO(fcb);
     switch (infoClass) {
     case FileAllInformation: {
       PFILE_ALL_INFORMATION allInfo;
@@ -110,6 +110,10 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
         __leave;
       }
 
+      if (!fcbLocked) {
+        DokanFCBLockRO(fcb);
+        fcbLocked = TRUE;
+      }
       status = FillNameInformation(RequestContext, fcb, nameInfo);
       __leave;
     } break;
@@ -138,6 +142,34 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
         __leave;
       }
       break;
+    case FileNetworkPhysicalNameInformation: {
+      // This info class is generally not worth passing to the DLL. It will be
+      // filled in with info that is accessible to the driver.
+
+      PFILE_NETWORK_PHYSICAL_NAME_INFORMATION netInfo;
+      if (!PrepareOutputHelper(
+              RequestContext->Irp, &netInfo,
+              FIELD_OFFSET(FILE_NETWORK_PHYSICAL_NAME_INFORMATION, FileName),
+              /*SetInformationOnFailure=*/FALSE)) {
+        status = STATUS_BUFFER_OVERFLOW;
+        __leave;
+      }
+
+      if (!fcbLocked) {
+        DokanFCBLockRO(fcb);
+        fcbLocked = TRUE;
+      }
+
+      if (!AppendVarSizeOutputString(RequestContext->Irp, &netInfo->FileName,
+                                     &fcb->FileName,
+                                     /*UpdateInformationOnFailure=*/FALSE,
+                                     /*FillSpaceWithPartialString=*/FALSE)) {
+        status = STATUS_BUFFER_OVERFLOW;
+        __leave;
+      }
+      status = STATUS_SUCCESS;
+      __leave;
+    }
     default:
       DOKAN_LOG_FINE_IRP(RequestContext, "Unsupported FileInfoClass %x", infoClass);
     }
@@ -145,6 +177,11 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
     if (fcb != NULL && fcb->BlockUserModeDispatch) {
       status = STATUS_SUCCESS;
       __leave;
+    }
+
+    if (!fcbLocked) {
+      DokanFCBLockRO(fcb);
+      fcbLocked = TRUE;
     }
 
     // If the request is not handled by the switch case we send it to userland.
@@ -163,7 +200,7 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
     eventContext->Operation.File.BufferLength =
         RequestContext->IrpSp->Parameters.QueryFile.Length;
 
-    // copy file name to EventContext from FCB
+        // copy file name to EventContext from FCB
     eventContext->Operation.File.FileNameLength = fcb->FileName.Length;
     RtlCopyMemory(eventContext->Operation.File.FileName, fcb->FileName.Buffer,
                   fcb->FileName.Length);
@@ -172,7 +209,7 @@ DokanDispatchQueryInformation(__in PREQUEST_CONTEXT RequestContext) {
     status = DokanRegisterPendingIrp(RequestContext, eventContext);
 
   } __finally {
-    if (fcb)
+    if (fcbLocked)
       DokanFCBUnlock(fcb);
   }
 

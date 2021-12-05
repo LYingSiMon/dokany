@@ -22,8 +22,7 @@ with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dokani.h"
 
-VOID DispatchFlush(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                   PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchFlush(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   DOKAN_FILE_INFO fileInfo;
   PEVENT_INFORMATION eventInfo;
   PDOKAN_OPEN_INFO openInfo;
@@ -32,14 +31,15 @@ VOID DispatchFlush(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.Flush.FileName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   DbgPrint("###Flush %04d\n", openInfo != NULL ? openInfo->EventId : -1);
 
-  if (DokanInstance->DokanOperations->FlushFileBuffers) {
+  if (IoEvent->DokanInstance->DokanOperations->FlushFileBuffers) {
 
-    status = DokanInstance->DokanOperations->FlushFileBuffers(
+    status = IoEvent->DokanInstance->DokanOperations->FlushFileBuffers(
         EventContext->Operation.Flush.FileName, &fileInfo);
 
   } else {
@@ -56,7 +56,7 @@ VOID DispatchFlush(HANDLE Handle, PEVENT_CONTEXT EventContext,
   if (openInfo != NULL)
     openInfo->UserContext = fileInfo.Context;
 
-  SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }

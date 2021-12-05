@@ -199,8 +199,8 @@ DokanSetValidDataLengthInformation(PEVENT_CONTEXT EventContext,
                                        FileInfo);
 }
 
-VOID DispatchSetInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                            PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchSetInformation(PDOKAN_IO_EVENT IoEvent,
+                            PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   PDOKAN_OPEN_INFO openInfo;
   DOKAN_FILE_INFO fileInfo;
@@ -217,7 +217,8 @@ VOID DispatchSetInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.SetFile.FileName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   DbgPrint("###SetFileInfo %04d  %d\n",
@@ -226,24 +227,21 @@ VOID DispatchSetInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   switch (EventContext->Operation.SetFile.FileInformationClass) {
   case FileAllocationInformation:
-    status = DokanSetAllocationInformation(EventContext, &fileInfo,
-                                           DokanInstance->DokanOperations);
+    status = DokanSetAllocationInformation(EventContext, &fileInfo, IoEvent->DokanInstance->DokanOperations);
     break;
 
   case FileBasicInformation:
     status = DokanSetBasicInformation(EventContext, &fileInfo,
-                                      DokanInstance->DokanOperations);
+                                      IoEvent->DokanInstance->DokanOperations);
     break;
 
   case FileDispositionInformation:
   case FileDispositionInformationEx:
-    status = DokanSetDispositionInformation(EventContext, &fileInfo,
-                                            DokanInstance->DokanOperations);
+    status = DokanSetDispositionInformation(EventContext, &fileInfo, IoEvent->DokanInstance->DokanOperations);
     break;
 
   case FileEndOfFileInformation:
-    status = DokanSetEndOfFileInformation(EventContext, &fileInfo,
-                                          DokanInstance->DokanOperations);
+    status = DokanSetEndOfFileInformation(EventContext, &fileInfo, IoEvent->DokanInstance->DokanOperations);
     break;
 
   case FilePositionInformation:
@@ -254,12 +252,11 @@ VOID DispatchSetInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
   case FileRenameInformation:
   case FileRenameInformationEx:
     status = DokanSetRenameInformation(EventContext, &fileInfo,
-                                       DokanInstance->DokanOperations);
+                                       IoEvent->DokanInstance->DokanOperations);
     break;
 
   case FileValidDataLengthInformation:
-    status = DokanSetValidDataLengthInformation(EventContext, &fileInfo,
-                                                DokanInstance->DokanOperations);
+    status = DokanSetValidDataLengthInformation(EventContext, &fileInfo, IoEvent->DokanInstance->DokanOperations);
     break;
   default:
     DbgPrint("  unknown FileInformationClass %d\n",
@@ -289,7 +286,7 @@ VOID DispatchSetInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   DbgPrint("\tDispatchSetInformation result =  %lx\n", status);
 
-  SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }

@@ -23,8 +23,7 @@ with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "dokani.h"
 #include "fileinfo.h"
 
-VOID DispatchLock(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                  PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchLock(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   DOKAN_FILE_INFO fileInfo;
   PEVENT_INFORMATION eventInfo;
   PDOKAN_OPEN_INFO openInfo;
@@ -33,7 +32,8 @@ VOID DispatchLock(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.Lock.FileName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   DbgPrint("###Lock %04d\n", openInfo != NULL ? openInfo->EventId : -1);
@@ -42,9 +42,9 @@ VOID DispatchLock(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   switch (EventContext->MinorFunction) {
   case IRP_MN_LOCK:
-    if (DokanInstance->DokanOperations->LockFile) {
+    if (IoEvent->DokanInstance->DokanOperations->LockFile) {
 
-      status = DokanInstance->DokanOperations->LockFile(
+      status = IoEvent->DokanInstance->DokanOperations->LockFile(
           EventContext->Operation.Lock.FileName,
           EventContext->Operation.Lock.ByteOffset.QuadPart,
           EventContext->Operation.Lock.Length.QuadPart,
@@ -62,9 +62,9 @@ VOID DispatchLock(HANDLE Handle, PEVENT_CONTEXT EventContext,
   case IRP_MN_UNLOCK_ALL_BY_KEY:
     break;
   case IRP_MN_UNLOCK_SINGLE:
-    if (DokanInstance->DokanOperations->UnlockFile) {
+    if (IoEvent->DokanInstance->DokanOperations->UnlockFile) {
 
-      status = DokanInstance->DokanOperations->UnlockFile(
+      status = IoEvent->DokanInstance->DokanOperations->UnlockFile(
           EventContext->Operation.Lock.FileName,
           EventContext->Operation.Lock.ByteOffset.QuadPart,
           EventContext->Operation.Lock.Length.QuadPart,
@@ -84,7 +84,7 @@ VOID DispatchLock(HANDLE Handle, PEVENT_CONTEXT EventContext,
   if (openInfo != NULL)
     openInfo->UserContext = fileInfo.Context;
 
-  SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }

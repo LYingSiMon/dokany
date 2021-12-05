@@ -556,8 +556,8 @@ VOID AddMissingCurrentAndParentFolder(PEVENT_CONTEXT EventContext,
   }
 }
 
-VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                                  PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchDirectoryInformation(PDOKAN_IO_EVENT IoEvent,
+                                  PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   DOKAN_FILE_INFO fileInfo;
   PDOKAN_OPEN_INFO openInfo;
@@ -569,7 +569,8 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.Directory.DirectoryName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   // check whether this is handled FileInfoClass
@@ -587,8 +588,8 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
     // send directory info to driver
     eventInfo->BufferLength = 0;
     eventInfo->Status = STATUS_INVALID_PARAMETER;
-    SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-    ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+    ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+    SendEventInformation(eventInfo, IoEvent, EventContext);
     free(eventInfo);
     return;
   }
@@ -604,8 +605,9 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
     } else {
       eventInfo->BufferLength = 0;
       eventInfo->Status = STATUS_NO_MEMORY;
-      SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-      ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+      ReleaseDokanOpenInfo(eventInfo, &fileInfo,
+                           IoEvent->DokanInstance);
+      SendEventInformation(eventInfo, IoEvent, EventContext);
       free(eventInfo);
       return;
     }
@@ -620,7 +622,7 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
     DbgPrint("###FindFiles %04d\n", openInfo->EventId);
 
     // if user defined FindFilesWithPattern
-    if (DokanInstance->DokanOperations->FindFilesWithPattern) {
+    if (IoEvent->DokanInstance->DokanOperations->FindFilesWithPattern) {
       LPCWSTR pattern = L"*";
 
       // if search pattern is specified
@@ -632,7 +634,7 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
       patternCheck = FALSE; // do not recheck pattern later in MatchFiles
 
-      status = DokanInstance->DokanOperations->FindFilesWithPattern(
+      status = IoEvent->DokanInstance->DokanOperations->FindFilesWithPattern(
           EventContext->Operation.Directory.DirectoryName, pattern,
           DokanFillFileData, &fileInfo);
 
@@ -641,12 +643,12 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
     }
 
     if (status == STATUS_NOT_IMPLEMENTED &&
-        DokanInstance->DokanOperations->FindFiles) {
+        IoEvent->DokanInstance->DokanOperations->FindFiles) {
 
       patternCheck = TRUE; // do pattern check later in MachFiles
 
       // call FileSystem specifeid callback routine
-      status = DokanInstance->DokanOperations->FindFiles(
+      status = IoEvent->DokanInstance->DokanOperations->FindFiles(
           EventContext->Operation.Directory.DirectoryName, DokanFillFileData,
           &fileInfo);
     }
@@ -677,7 +679,7 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
     DbgPrint("index from %d\n", EventContext->Operation.Directory.FileIndex);
     // extract entries that match search pattern from FindFiles result
     index = MatchFiles(EventContext, eventInfo, openInfo->DirListHead,
-                       patternCheck, DokanInstance);
+                       patternCheck, IoEvent->DokanInstance);
 
     // there is no matched file
     if (index < 0) {
@@ -707,8 +709,8 @@ VOID DispatchDirectoryInformation(HANDLE Handle, PEVENT_CONTEXT EventContext,
   openInfo->UserContext = fileInfo.Context;
 
   // send directory information to driver
-  SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }
 

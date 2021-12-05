@@ -415,6 +415,12 @@ typedef struct _EVENT_INFORMATION {
 
 } EVENT_INFORMATION, *PEVENT_INFORMATION;
 
+#define DOKAN_EVENT_INFO_MIN_BUFFER_SIZE (sizeof(UCHAR) * 8)
+#define DOKAN_EVENT_INFO_ALLOC_SIZE(bufSize)                                   \
+  (FIELD_OFFSET(EVENT_INFORMATION, Buffer[0]) +                                \
+   max(DOKAN_EVENT_INFO_MIN_BUFFER_SIZE, (bufSize)))
+
+
 // Dokan mount options
 #define DOKAN_EVENT_ALTERNATIVE_STREAM_ON                           1
 #define DOKAN_EVENT_WRITE_PROTECT                                   (1 << 1)
@@ -438,6 +444,7 @@ typedef struct _EVENT_INFORMATION {
 // Enables unmounting of network drives via file explorer
 #define DOKAN_EVENT_ENABLE_NETWORK_UNMOUNT                          (1 << 9)
 #define DOKAN_EVENT_DISPATCH_DRIVER_LOGS                            (1 << 10)
+#define DOKAN_EVENT_ALLOW_IPC_BATCHING                              (1 << 11)
 
 // Non-exclusive bits that can be set in EVENT_DRIVER_INFO.Flags for the driver
 // to send back extra info about what happened during a mount attempt, whether

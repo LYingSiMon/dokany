@@ -100,11 +100,7 @@ BOOL CreateSuccesStatusCheck(NTSTATUS status, ULONG disposition) {
   return FALSE;
 }
 
-VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
-                                   // Dokan Device Driver(which is doing
-                                   // EVENT_WAIT).
-                    PEVENT_CONTEXT EventContext,
-                    PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchCreate(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   static int eventId = 0;
   EVENT_INFORMATION eventInfo;
   NTSTATUS status = STATUS_INSUFFICIENT_RESOURCES;
@@ -130,20 +126,20 @@ VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
   eventInfo.SerialNumber = EventContext->SerialNumber;
 
   fileInfo.ProcessId = EventContext->ProcessId;
-  fileInfo.DokanOptions = DokanInstance->DokanOptions;
+  fileInfo.DokanOptions = IoEvent->DokanInstance->DokanOptions;
 
   // DOKAN_OPEN_INFO is structure for a opened file
   // this will be freed by Close
   openInfo = malloc(sizeof(DOKAN_OPEN_INFO));
   if (openInfo == NULL) {
     eventInfo.Status = STATUS_INSUFFICIENT_RESOURCES;
-    SendEventInformation(Handle, &eventInfo, sizeof(EVENT_INFORMATION));
+    SendEventInformation(&eventInfo, IoEvent, EventContext);
     return;
   }
   ZeroMemory(openInfo, sizeof(DOKAN_OPEN_INFO));
   openInfo->OpenCount = 1;
   openInfo->EventContext = EventContext;
-  openInfo->DokanInstance = DokanInstance;
+  openInfo->DokanInstance = IoEvent->DokanInstance;
   fileInfo.DokanContext = (ULONG64)openInfo;
 
   // pass it to driver and when the same handle is used get it back
@@ -203,26 +199,28 @@ VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
 
   openInfo->EventId = eventId++;
 
-  if (DokanInstance->DokanOperations->ZwCreateFile) {
+  if (IoEvent->DokanInstance->DokanOperations->ZwCreateFile) {
 
     SetIOSecurityContext(EventContext, &ioSecurityContext);
 
     if ((EventContext->Flags & SL_OPEN_TARGET_DIRECTORY) &&
-        DokanInstance->DokanOperations->Cleanup &&
-        DokanInstance->DokanOperations->CloseFile) {
+        IoEvent->DokanInstance->DokanOperations->Cleanup &&
+        IoEvent->DokanInstance->DokanOperations->CloseFile) {
 
       if (options & FILE_NON_DIRECTORY_FILE && options & FILE_DIRECTORY_FILE)
         status = STATUS_INVALID_PARAMETER;
       else
-        status = DokanInstance->DokanOperations->ZwCreateFile(
+        status = IoEvent->DokanInstance->DokanOperations->ZwCreateFile(
             origFileName, &ioSecurityContext, ioSecurityContext.DesiredAccess,
             EventContext->Operation.Create.FileAttributes,
             EventContext->Operation.Create.ShareAccess, disposition,
             origOptions, &fileInfo);
 
       if (CreateSuccesStatusCheck(status, disposition)) {
-        DokanInstance->DokanOperations->Cleanup(origFileName, &fileInfo);
-        DokanInstance->DokanOperations->CloseFile(origFileName, &fileInfo);
+        IoEvent->DokanInstance->DokanOperations->Cleanup(origFileName,
+                                                           &fileInfo);
+        IoEvent->DokanInstance->DokanOperations->CloseFile(origFileName,
+                                                             &fileInfo);
       } else if (status == STATUS_OBJECT_NAME_NOT_FOUND) {
         DbgPrint("SL_OPEN_TARGET_DIRECTORY file not found\n");
         childExisted = FALSE;
@@ -234,7 +232,7 @@ VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
     if (options & FILE_NON_DIRECTORY_FILE && options & FILE_DIRECTORY_FILE)
       status = STATUS_INVALID_PARAMETER;
     else
-      status = DokanInstance->DokanOperations->ZwCreateFile(
+      status = IoEvent->DokanInstance->DokanOperations->ZwCreateFile(
           fileName, &ioSecurityContext, ioSecurityContext.DesiredAccess,
           EventContext->Operation.Create.FileAttributes,
           EventContext->Operation.Create.ShareAccess, disposition, options,
@@ -272,7 +270,7 @@ VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
     }
 
     if (STATUS_ACCESS_DENIED == status &&
-        DokanInstance->DokanOperations->ZwCreateFile &&
+        IoEvent->DokanInstance->DokanOperations->ZwCreateFile &&
         (EventContext->Operation.Create.SecurityContext.DesiredAccess &
          DELETE)) {
       DbgPrint("Delete failed, ask parent folder if we have the right\n");
@@ -299,7 +297,7 @@ VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
       options |= FILE_OPEN_FOR_BACKUP_INTENT; //Enable open directory
       options &= ~FILE_NON_DIRECTORY_FILE;    //Remove non dir flag
 
-      status = DokanInstance->DokanOperations->ZwCreateFile(
+      status = IoEvent->DokanInstance->DokanOperations->ZwCreateFile(
           fileName, &ioSecurityContext, newDesiredAccess,
           EventContext->Operation.Create.FileAttributes,
           EventContext->Operation.Create.ShareAccess, disposition, options,
@@ -349,5 +347,5 @@ VOID DispatchCreate(HANDLE Handle, // This handle is not for a file. It is for
     eventInfo.Context = 0;
   }
 
-  SendEventInformation(Handle, &eventInfo, sizeof(EVENT_INFORMATION));
+  SendEventInformation(&eventInfo, IoEvent, EventContext);
 }

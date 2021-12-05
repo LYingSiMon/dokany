@@ -22,8 +22,7 @@ with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dokani.h"
 
-VOID DispatchRead(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                  PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchRead(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   PDOKAN_OPEN_INFO openInfo;
   ULONG readLength = 0;
@@ -34,13 +33,14 @@ VOID DispatchRead(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.Read.FileName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   DbgPrint("###Read %04d\n", openInfo != NULL ? openInfo->EventId : -1);
 
-  if (DokanInstance->DokanOperations->ReadFile) {
-    status = DokanInstance->DokanOperations->ReadFile(
+  if (IoEvent->DokanInstance->DokanOperations->ReadFile) {
+    status = IoEvent->DokanInstance->DokanOperations->ReadFile(
         EventContext->Operation.Read.FileName, eventInfo->Buffer,
         EventContext->Operation.Read.BufferLength, &readLength,
         EventContext->Operation.Read.ByteOffset.QuadPart, &fileInfo);
@@ -61,7 +61,7 @@ VOID DispatchRead(HANDLE Handle, PEVENT_CONTEXT EventContext,
     }
   }
 
-  SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }

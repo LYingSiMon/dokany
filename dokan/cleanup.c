@@ -22,8 +22,7 @@ with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dokani.h"
 
-VOID DispatchCleanup(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                     PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchCleanup(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   DOKAN_FILE_INFO fileInfo;
   PDOKAN_OPEN_INFO openInfo;
@@ -31,23 +30,24 @@ VOID DispatchCleanup(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.Cleanup.FileName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   eventInfo->Status = STATUS_SUCCESS; // return success at any case
 
   DbgPrint("###Cleanup %04d\n", openInfo != NULL ? openInfo->EventId : -1);
 
-  if (DokanInstance->DokanOperations->Cleanup) {
+  if (IoEvent->DokanInstance->DokanOperations->Cleanup) {
     // ignore return value
-    DokanInstance->DokanOperations->Cleanup(
+    IoEvent->DokanInstance->DokanOperations->Cleanup(
         EventContext->Operation.Cleanup.FileName, &fileInfo);
   }
 
   if (openInfo != NULL)
     openInfo->UserContext = fileInfo.Context;
 
-  SendEventInformation(Handle, eventInfo, sizeOfEventInfo);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }

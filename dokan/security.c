@@ -127,8 +127,8 @@ NTSTATUS DefaultGetFileSecurity(LPCWSTR FileName,
   return STATUS_SUCCESS;
 }
 
-VOID DispatchQuerySecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                           PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchQuerySecurity(PDOKAN_IO_EVENT IoEvent,
+                           PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   DOKAN_FILE_INFO fileInfo;
   PDOKAN_OPEN_INFO openInfo;
@@ -139,14 +139,15 @@ VOID DispatchQuerySecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.Security.FileName);
 
-  eventInfo = DispatchCommon(EventContext, eventInfoLength, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, eventInfoLength,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   DbgPrint("###GetFileSecurity %04d\n",
            openInfo != NULL ? openInfo->EventId : -1);
 
-  if (DokanInstance->DokanOperations->GetFileSecurity) {
-    status = DokanInstance->DokanOperations->GetFileSecurity(
+  if (IoEvent->DokanInstance->DokanOperations->GetFileSecurity) {
+    status = IoEvent->DokanInstance->DokanOperations->GetFileSecurity(
         EventContext->Operation.Security.FileName,
         &EventContext->Operation.Security.SecurityInformation,
         &eventInfo->Buffer, EventContext->Operation.Security.BufferLength,
@@ -175,13 +176,12 @@ VOID DispatchQuerySecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
     }
   }
 
-  SendEventInformation(Handle, eventInfo, eventInfoLength);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }
 
-VOID DispatchSetSecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                         PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchSetSecurity(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   DOKAN_FILE_INFO fileInfo;
   PDOKAN_OPEN_INFO openInfo;
@@ -191,7 +191,8 @@ VOID DispatchSetSecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
 
   CheckFileName(EventContext->Operation.SetSecurity.FileName);
 
-  eventInfo = DispatchCommon(EventContext, eventInfoLength, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, eventInfoLength,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   DbgPrint("###SetSecurity %04d\n", openInfo != NULL ? openInfo->EventId : -1);
@@ -199,8 +200,8 @@ VOID DispatchSetSecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
   securityDescriptor =
       (PCHAR)EventContext + EventContext->Operation.SetSecurity.BufferOffset;
 
-  if (DokanInstance->DokanOperations->SetFileSecurity) {
-    status = DokanInstance->DokanOperations->SetFileSecurity(
+  if (IoEvent->DokanInstance->DokanOperations->SetFileSecurity) {
+    status = IoEvent->DokanInstance->DokanOperations->SetFileSecurity(
         EventContext->Operation.SetSecurity.FileName,
         &EventContext->Operation.SetSecurity.SecurityInformation,
         securityDescriptor, EventContext->Operation.SetSecurity.BufferLength,
@@ -215,7 +216,7 @@ VOID DispatchSetSecurity(HANDLE Handle, PEVENT_CONTEXT EventContext,
     eventInfo->BufferLength = 0;
   }
 
-  SendEventInformation(Handle, eventInfo, eventInfoLength);
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
+  SendEventInformation(eventInfo, IoEvent, EventContext);
   free(eventInfo);
 }

@@ -56,8 +56,8 @@ extern "C" {
 /** @{ */
 
 /** The current Dokan version (140 means ver 1.4.0). \ref DOKAN_OPTIONS.Version */
-#define DOKAN_VERSION 151
-/** Minimum Dokan version (ver 1.1.0) accepted. */
+#define DOKAN_VERSION 160
+/** Minimum Dokan version (ver 2.0.0) accepted. */
 #define DOKAN_MINIMUM_COMPATIBLE_VERSION 110
 /** Driver file name including the DOKAN_MAJOR_API_VERSION */
 #define DOKAN_DRIVER_NAME L"dokan" DOKAN_MAJOR_API_VERSION L".sys"
@@ -127,8 +127,12 @@ extern "C" {
  * This option is expected to be slow until IpcBatching is available on v2.x.x
  */
 #define DOKAN_OPTION_DISPATCH_DRIVER_LOGS 16384
+/* Pull batches of requests from Kernel. This helps on heavy loads. */
+#define DOKAN_OPTION_ALLOW_IPC_BATCHING 32768
 
 /** @} */
+
+typedef void *DOKAN_HANDLE, **PDOKAN_HANDLE;
 
 /**
  * \struct DOKAN_OPTIONS
@@ -138,8 +142,6 @@ extern "C" {
 typedef struct _DOKAN_OPTIONS {
   /** Version of the Dokan features requested without dots (version "123" is equal to Dokan version 1.2.3). */
   USHORT Version;
-  /** Number of threads to be used by Dokan library internally. More threads will handle more events at the same time. */
-  USHORT ThreadCount;
   /** Features enabled for the mount. See \ref DOKAN_OPTION. */
   ULONG Options;
   /** FileSystem can store anything here. */
@@ -788,6 +790,20 @@ typedef struct _DOKAN_OPERATIONS {
  */
 int DOKANAPI DokanMain(PDOKAN_OPTIONS DokanOptions,
                        PDOKAN_OPERATIONS DokanOperations);
+
+int DOKANAPI DokanCreateFileSystem(
+	_In_ PDOKAN_OPTIONS DokanOptions,
+	_In_ PDOKAN_OPERATIONS DokanOperations,
+	_Out_ DOKAN_HANDLE *DokanInstance);
+
+BOOL DOKANAPI DokanIsFileSystemRunning(_In_ DOKAN_HANDLE DokanInstance);
+
+// See WaitForSingleObject() for a description of return values
+DWORD DOKANAPI DokanWaitForFileSystemClosed(
+	DOKAN_HANDLE DokanInstance,
+	DWORD dwMilliseconds);
+
+void DOKANAPI DokanCloseHandle(DOKAN_HANDLE DokanInstance);
 
 /**
  * \brief Unmount a Dokan device from a driver letter.

@@ -22,18 +22,16 @@ with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dokani.h"
 
-VOID DispatchClose(HANDLE Handle, PEVENT_CONTEXT EventContext,
-                   PDOKAN_INSTANCE DokanInstance) {
+VOID DispatchClose(PDOKAN_IO_EVENT IoEvent, PEVENT_CONTEXT EventContext) {
   PEVENT_INFORMATION eventInfo;
   DOKAN_FILE_INFO fileInfo;
   PDOKAN_OPEN_INFO openInfo;
   ULONG sizeOfEventInfo = DispatchGetEventInformationLength(0);
 
-  UNREFERENCED_PARAMETER(Handle);
-
   CheckFileName(EventContext->Operation.Close.FileName);
 
-  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo, DokanInstance,
+  eventInfo = DispatchCommon(EventContext, sizeOfEventInfo,
+                             IoEvent->DokanInstance,
                              &fileInfo, &openInfo);
 
   eventInfo->Status = STATUS_SUCCESS; // return success at any case
@@ -45,11 +43,12 @@ VOID DispatchClose(HANDLE Handle, PEVENT_CONTEXT EventContext,
   // to reply from this so there is no need to send an EVENT_INFORMATION.
 
   if (openInfo != NULL) {
-    EnterCriticalSection(&DokanInstance->CriticalSection);
+    EnterCriticalSection(&IoEvent->DokanInstance->CriticalSection);
     openInfo->FileName = _wcsdup(EventContext->Operation.Close.FileName);
     openInfo->OpenCount--;
-    LeaveCriticalSection(&DokanInstance->CriticalSection);
+    LeaveCriticalSection(&IoEvent->DokanInstance->CriticalSection);
   }
-  ReleaseDokanOpenInfo(eventInfo, &fileInfo, DokanInstance);
+  ReleaseDokanOpenInfo(eventInfo, &fileInfo, IoEvent->DokanInstance);
   free(eventInfo);
+  PushIoEventBuffer(IoEvent);
 }

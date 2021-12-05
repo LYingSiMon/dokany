@@ -450,8 +450,8 @@ GetEventInfoSize(__in ULONG MajorFunction, __in PEVENT_INFORMATION EventInfo) {
     return sizeof(EVENT_INFORMATION);
   }
   return max(sizeof(EVENT_INFORMATION),
-             sizeof(EVENT_INFORMATION) - sizeof(EventInfo->Buffer)
-                 + EventInfo->BufferLength);
+             (ULONG)(FIELD_OFFSET(EVENT_INFORMATION, Buffer[0])) +
+                 EventInfo->BufferLength);
 }
 
 // When user-mode file system application returns EventInformation,
@@ -474,16 +474,10 @@ DokanCompleteIrp(__in PREQUEST_CONTEXT RequestContext) {
 
   bufferLength =
       RequestContext->IrpSp->Parameters.DeviceIoControl.InputBufferLength;
-  // Dokan 1.x.x Library can send buffer under EVENT_INFO struct size:
-  // - IRP_MJ_QUERY_SECURITY sending STATUS_BUFFER_OVERFLOW
-  // - IRP_MJ_READ with negative read size
-  // The behavior was fixed since but adding the next line would break
-  // backward compatiblity.
-  // TODO 2.x.x - use GET_IRP_BUFFER_OR_RETURN(Irp, eventInfo);
-  /*if (bufferLength < sizeof(EVENT_INFORMATION)) {
+  if (bufferLength < sizeof(EVENT_INFORMATION)) {
     DOKAN_LOG_FINE_IRP(RequestContext, "Wrong input buffer length");
     return STATUS_BUFFER_TOO_SMALL;
-  }*/
+  }
 
   buffer = (PCHAR)RequestContext->Irp->AssociatedIrp.SystemBuffer;
   ASSERT(buffer != NULL);
@@ -523,12 +517,6 @@ DokanCompleteIrp(__in PREQUEST_CONTEXT RequestContext) {
     }
     RemoveEntryList(thisEntry);
     InsertTailList(&completeList, thisEntry);
-    // We break until 2.x.x - See function head comment
-__pragma(warning(push))
-__pragma(warning(disable : 4127))
-    if (1 == 1)
-        break;
-__pragma(warning(pop))
     offset += GetEventInfoSize(irpEntry->RequestContext.IrpSp->MajorFunction,
                                eventInfo);
     // Everything through offset - 1 must be readable by the completion function
@@ -838,6 +826,8 @@ DokanEventStart(__in PREQUEST_CONTEXT RequestContext) {
   dcb->MountOptions = eventStart->Flags;
   dcb->DispatchDriverLogs =
       (eventStart->Flags & DOKAN_EVENT_DISPATCH_DRIVER_LOGS) != 0;
+  dcb->AllowIpcBatching =
+      (eventStart->Flags & DOKAN_EVENT_ALLOW_IPC_BATCHING) != 0;
   isMountPointDriveLetter = IsMountPointDriveLetter(dcb->MountPoint);
 
   if (dcb->DispatchDriverLogs) {

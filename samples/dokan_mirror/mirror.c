@@ -1582,7 +1582,6 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
 
   ZeroMemory(&dokanOptions, sizeof(DOKAN_OPTIONS));
   dokanOptions.Version = DOKAN_VERSION;
-  dokanOptions.ThreadCount = 0; // use default
 
   for (command = 1; command < argc; command++) {
     switch (towlower(argv[command][1])) {
@@ -1602,10 +1601,10 @@ int __cdecl wmain(ULONG argc, PWCHAR argv[]) {
       wcscpy_s(MountPoint, sizeof(MountPoint) / sizeof(WCHAR), argv[command]);
       dokanOptions.MountPoint = MountPoint;
       break;
-    case L't':
+    /* case L't': - TODO SINGLETHREAD
       CHECK_CMD_ARG(command, argc)
       dokanOptions.ThreadCount = (USHORT)_wtoi(argv[command]);
-      break;
+      break;*/
     case L'd':
       g_DebugMode = TRUE;
       break;

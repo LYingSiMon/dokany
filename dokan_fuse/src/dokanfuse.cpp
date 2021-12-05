@@ -526,7 +526,7 @@ int do_fuse_loop(struct fuse *fs, bool mt) {
 
   dokanOptions->Version = DOKAN_VERSION;
   dokanOptions->MountPoint = mount;
-  dokanOptions->ThreadCount = mt ? FUSE_THREAD_COUNT : 1;
+  //dokanOptions->ThreadCount = mt ? FUSE_THREAD_COUNT : 1;
   dokanOptions->Timeout = fs->conf.timeoutInSec * 1000;
   dokanOptions->AllocationUnitSize = fs->conf.allocationUnitSize;
   dokanOptions->SectorSize = fs->conf.sectorSize;
