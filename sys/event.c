@@ -449,8 +449,8 @@ GetEventInfoSize(__in ULONG MajorFunction, __in PEVENT_INFORMATION EventInfo) {
     // used length is a value not specified in the struct.
     return sizeof(EVENT_INFORMATION);
   }
-  return max(sizeof(EVENT_INFORMATION),
-             (ULONG)(FIELD_OFFSET(EVENT_INFORMATION, Buffer[0])) +
+  return max((ULONG)sizeof(EVENT_INFORMATION),
+             FIELD_OFFSET(EVENT_INFORMATION, Buffer[0]) +
                  EventInfo->BufferLength);
 }
 

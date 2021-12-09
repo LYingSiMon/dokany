@@ -800,12 +800,6 @@ GetEventInfoSize(__in ULONG MajorFunction, __in PEVENT_INFORMATION EventInfo) {
     // is the "bytes written" value as opposed to the reply size.
     return sizeof(EVENT_INFORMATION);
   }
-  if (EventInfo->Status == STATUS_BUFFER_OVERFLOW) {
-    // For buffer overflow replies, the BufferLength is the needed length and
-    // not the used length. The caller needs to take precautions in case the
-    // used length is a value not specified in the struct.
-    return sizeof(EVENT_INFORMATION);
-  }
   return max((ULONG)sizeof(EVENT_INFORMATION),
              FIELD_OFFSET(EVENT_INFORMATION, Buffer[0]) +
                  EventInfo->BufferLength);

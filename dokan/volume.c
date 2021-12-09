@@ -343,12 +343,10 @@ VOID DispatchQueryVolumeInformation(PDOKAN_IO_EVENT IoEvent,
   // so DispatchCommon is not used here
   openInfo = (PDOKAN_OPEN_INFO)(INT_PTR)EventContext->Context;
 
-  eventInfo->BufferLength = 0;
-  eventInfo->SerialNumber = EventContext->SerialNumber;
-
   fileInfo.ProcessId = EventContext->ProcessId;
   fileInfo.DokanOptions = IoEvent->DokanInstance->DokanOptions;
 
+  eventInfo->SerialNumber = EventContext->SerialNumber;
   eventInfo->Status = STATUS_INVALID_PARAMETER;
   eventInfo->BufferLength = 0;
 
